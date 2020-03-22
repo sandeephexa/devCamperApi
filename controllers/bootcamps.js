@@ -8,16 +8,65 @@ const geocoder = require('../utils/geocoder');
 // @access Public
 exports.getBootcamps = asynchHandler(async (req,res,next) => {
     let query;
-    let queryStr = JSON.stringify(req.query);
-    
-    queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, match => `$${match}`);
-    query = Bootcamp.find(JSON.parse(queryStr));
 
+    // copy req query
+    const reqQuery = { ...req.query };
+    console.log("before...",reqQuery); 
+    // fields to exclude
+    const removeFields = ['select','sort','page','limit'];
+    // loop over fields and delete from reqQuery
+    removeFields.forEach(param => delete reqQuery[param]);
+    
+    // create query string
+    let queryStr = JSON.stringify(reqQuery);
+    // create operators ge,gte etc...
+    queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, match => `$${match}`);
+    // finding resource
+    query = Bootcamp.find(JSON.parse(queryStr)).populate('courses');
+    // SELECT fields
+    if(req.query.select){
+        const fields = req.query.select.split(',').join(' ');
+        query = query.select(fields);
+    }
+    // Sort
+    if(req.query.sort){
+        const sortBy = req.query.sort.split(',').join(' ');
+        query = query.sort(sortBy);
+    }else {
+        query = query.sort('-createdBy');
+    }
+    // Pagenation
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const  startIndex = (page - 1) * limit;
+    console.log("startIndex..."+startIndex);
+    const endIndex = page * limit;
+    const  total = await Bootcamp.countDocuments();
+    query = query.skip(startIndex).limit(limit);
+    console.log("after...",reqQuery); 
+
+        // exectuting query
         const bootcamps = await query;
+        // Pagenation
+        const pagenation = {};
+        if(endIndex < total){
+            pagenation.next = {
+                page : page + 1,
+                limit
+            }
+        }
+
+        if(startIndex > 0){
+            pagenation.prev = {
+                page : page - 1,
+                limit
+            }
+        }
         res.status(200).json({
             success : true,
             count : bootcamps.length,
-            data : bootcamps
+            data : bootcamps,
+            pagenation
         });
   
 });
@@ -67,12 +116,14 @@ exports.updateBootcamp = asynchHandler(async (req,res,next) => {
 // @route POST api.v1/bootcamps/:id
 // @access Private
 exports.deleteBootcamp = asynchHandler(async(req,res,next) => {
-        const bootcamp = await Bootcamp.findByIdAndDelete(req.params.id)
+        const bootcamp = await Bootcamp.findById(req.params.id)
     
         if(!bootcamp){
             return next(new errorResponse(`Bootcamp not found with id ${req.params.id}`,404));
         }
         res.status(200).json({success : true, data : {}});
+
+        bootcamp.remove();
 })
 
 // @desc GET bootcamps by radius

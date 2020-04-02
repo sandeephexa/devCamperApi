@@ -6,6 +6,7 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/error');
 const fileupload = require('express-fileupload');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 //const logger = require('./middleware/logger')
 
 // Load env vars
@@ -20,7 +21,10 @@ const courses = require('./routes/courses');
 const auth = require('./routes/auth');
 
 const app = express();
+//Body parser
 app.use(express.json());
+// Cookie parser middleware
+app.use(cookieParser());
 
 // Dev logging middleware
 if(process.env.NODE_ENV === 'development'){
